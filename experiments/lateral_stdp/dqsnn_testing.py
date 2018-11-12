@@ -56,7 +56,7 @@ def test(DQSNN_path, dt=1.0, runtime=500, episodes=100, epsilon=0, **args):
         nolog = sys.stdout
         sys.stdout = LogPrint(sys.stdout, f)
     
-    print(f'Loading DQSNN from {DQSNN_path}...')
+    print(f'Loading DQSNN from {DQSNN_path}.')
     DQSNN = load(DQSNN_path, device_id=args['device_id'])
     
     ENV = GymEnvironment('BreakoutDeterministic-v4')
@@ -129,7 +129,6 @@ def test(DQSNN_path, dt=1.0, runtime=500, episodes=100, epsilon=0, **args):
     viz_data_file = os.path.join(os.path.dirname(DQSNN_path), f'{os.path.basename(DQSNN_path)[:3]}_dqsnn.dat')
     pickle.dump(viz_data, open(viz_data_file, 'wb'))
     print(f'Average Reward over {episodes} Episodes {torch.sum(episode_rewards) / episodes}')
-    print(f'Saved Trained Network to {network_file}.')
     print(f'Saved Collected Data to {viz_data_file}.')
     print(f'Total time taken: {end_time - start_time}')
     
