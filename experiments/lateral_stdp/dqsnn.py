@@ -33,7 +33,7 @@ class Net(nn.Module):
         return x
 
 
-def transfer(ann_path, dt=1.0, runtime=500, scale1=6.452, scale2=71.155, probabilistic=True, stdp=True, nu_pre=1e-8, nu_post=1e-6, device_id=0):
+def transfer(ann_path, dt=1.0, runtime=500, scale1=6.452, scale2=71.155, probabilistic=False, stdp=True, nu_pre=1e-8, nu_post=1e-6, device_id=0):
     if not torch.cuda.is_available():
         DQANN = torch.load(ann_path, map_location='cpu')
     else:
@@ -43,22 +43,24 @@ def transfer(ann_path, dt=1.0, runtime=500, scale1=6.452, scale2=71.155, probabi
     
     # Create Layers.
     inpt = Input(n=6400, traces=False) # TODO : Latest BindsNET uses RealInput
-    exc = LIFNodes(n=1000, refrac=0, traces=True, thresh=-52, rest=-65.0, decay=1e-2)
-    readout = LIFNodes(n=4, refrac=0, traces=True, thresh=-52.0, rest=-65.0, decay=1e-2)
+    exc = LIFNodes(n=1000, refrac=0, traces=True, thresh=-52, rest=-65.0, decay=1e-2, probabilistic=probabilistic)
+    readout = LIFNodes(n=4, refrac=0, traces=True, thresh=-52.0, rest=-65.0, decay=1e-2, probabilistic=probabilistic)
     layers = {'X': inpt, 'E': exc, 'R': readout}
     
     for layer in layers:
         DQSNN.add_layer(layers[layer], name=layer)
     
     # Create Connections
-    input_exc_conn = Connection(source=layers['X'], target=layers['E'], w=torch.transpose(DQANN.fc1.weight, 0, 1) * scale1, probabilistic=probabilistic)
-    exc_readout_conn = Connection(source=layers['E'], target=layers['R'], w=torch.transpose(DQANN.fc2.weight, 0, 1) * scale2, probabilistic=probabilistic)
+    input_exc_conn = Connection(source=layers['X'], target=layers['E'], w=torch.transpose(DQANN.fc1.weight, 0, 1) * scale1)
+    exc_readout_conn = Connection(source=layers['E'], target=layers['R'], w=torch.transpose(DQANN.fc2.weight, 0, 1) * scale2)
     DQSNN.add_connection(input_exc_conn, source='X', target='E')
     DQSNN.add_connection(exc_readout_conn, source='E', target='R')
     
     if stdp:
-        exc_exc_conn = Connection(source=layers['E'], target=layers['E'], w=torch.rand((1000,1000)), 
-                                  update_rule=post_pre, nu_pre=nu_pre, nu_post=nu_post, norm=(2035*100))
+        w=torch.rand((1000, 1000))
+        _ = w.as_strided([1000], [1001]).copy_(torch.zeros(1000))
+        exc_exc_conn = Connection(source=layers['E'], target=layers['E'], w=w, 
+                                  update_rule=post_pre, nu_pre=nu_pre, nu_post=nu_post, norm=(2035))
         DQSNN.add_connection(exc_exc_conn, source='E', target='E')
     
     # Create Monitors.
@@ -70,7 +72,7 @@ def transfer(ann_path, dt=1.0, runtime=500, scale1=6.452, scale2=71.155, probabi
     return DQSNN
     
 
-def main(dt=1.0, runtime=500, scale1=6.452, scale2=71.155, probabilistic=True, episodes=100, epsilon=0, **args):
+def main(dt=1.0, runtime=500, scale1=6.452, scale2=71.155, probabilistic=False, episodes=100, epsilon=0, **args):
     DQSNN = transfer('../../trained_models/dqn_time_difference_grayscale.pt', stdp=args['stdp'], nu_pre=args['nu_pre'], nu_post=args['nu_post'], device_id=args['device_id'])
     
     ENV = GymEnvironment('BreakoutDeterministic-v4')
@@ -135,7 +137,7 @@ def main(dt=1.0, runtime=500, scale1=6.452, scale2=71.155, probabilistic=True, e
             obs = next_obs
         
             if done:
-                print(f'Step {steps} ({total_steps}) @ Episode {i_episode+1:03d}/{episodes}')
+                print(f'Step {steps} ({total_steps}) @ Episode {i_episode+1}/{episodes}')
                 print(f'Episode Reward {episode_rewards[i_episode]}')
                 sys.stdout.flush()
                 break
@@ -153,7 +155,7 @@ def main(dt=1.0, runtime=500, scale1=6.452, scale2=71.155, probabilistic=True, e
     pickle.dump(viz_data, open(viz_data_file, 'wb'))
     DQSNN.save(curr_network_file)
     print(f'Average Reward over {episodes} Episodes {torch.sum(episode_rewards) / episodes}')
-    print(f'Saved Trained Network to {network_file}.')
+    print(f'Saved Trained Network to {curr_network_file}.')
     print(f'Saved Collected Data to {viz_data_file}.')
     print(f'Total time taken: {end_time - start_time}')
     
@@ -165,7 +167,7 @@ if __name__ == '__main__':
     parser.add_argument('--runtime', type=int, default=250)
     parser.add_argument('--scale1', type=float, default=6.452)
     parser.add_argument('--scale2', type=float, default=71.155)
-    parser.add_argument('--probabilistic', type=bool, default=True)
+    parser.add_argument('--probabilistic', type=bool, default=False)
     parser.add_argument('--stdp', type=bool, default=True)
     parser.add_argument('--nu_pre', type=float, default=1e-8)
     parser.add_argument('--nu_post', type=float, default=1e-6)
@@ -204,4 +206,3 @@ if __name__ == '__main__':
     
     print(args)
     main(**args)
-    

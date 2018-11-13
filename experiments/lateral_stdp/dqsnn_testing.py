@@ -117,7 +117,7 @@ def test(DQSNN_path, dt=1.0, runtime=500, episodes=100, epsilon=0, **args):
             obs = next_obs
         
             if done:
-                print(f'Step {steps} ({total_steps}) @ Episode {i_episode+1:03d}/{episodes}')
+                print(f'Step {steps} ({total_steps}) @ Episode {i_episode+1}/{episodes}')
                 print(f'Episode Reward {episode_rewards[i_episode]}')
                 sys.stdout.flush()
                 break
