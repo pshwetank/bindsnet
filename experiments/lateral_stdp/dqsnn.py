@@ -33,7 +33,7 @@ class Net(nn.Module):
         return x
 
 
-def transfer(ann_path, dt=1.0, runtime=500, scale1=6.452, scale2=71.155, probabilistic=False, stdp=True, nu_pre=1e-8, nu_post=1e-6, device_id=0):
+def transfer(ann_path, dt=1.0, runtime=500, scale1=6.452, scale2=71.155, probabilistic=0, stdp=0, nu_pre=1e-8, nu_post=1e-6, device_id=0):
     if not torch.cuda.is_available():
         DQANN = torch.load(ann_path, map_location='cpu')
     else:
@@ -72,8 +72,8 @@ def transfer(ann_path, dt=1.0, runtime=500, scale1=6.452, scale2=71.155, probabi
     return DQSNN
     
 
-def main(dt=1.0, runtime=500, scale1=6.452, scale2=71.155, probabilistic=False, episodes=100, epsilon=0, **args):
-    DQSNN = transfer('../../trained_models/dqn_time_difference_grayscale.pt', stdp=args['stdp'], nu_pre=args['nu_pre'], nu_post=args['nu_post'], device_id=args['device_id'])
+def main(dt=1.0, runtime=500, scale1=6.452, scale2=71.155, episodes=100, epsilon=0, device_id=0, **args):
+    DQSNN = transfer('../../trained_models/dqn_time_difference_grayscale.pt', probabilistic=args['probabilistic'], stdp=args['stdp'], nu_pre=args['nu_pre'], nu_post=args['nu_post'], device_id=device_id)
     
     ENV = GymEnvironment('BreakoutDeterministic-v4')
     ACTIONS = torch.tensor([0, 1, 2, 3])
@@ -98,7 +98,7 @@ def main(dt=1.0, runtime=500, scale1=6.452, scale2=71.155, probabilistic=False, 
     print(f'Saved Start Network to {curr_network_file}.')
     
     for i_episode in range(episodes):
-        obs = ENV.reset().cuda()
+        obs = ENV.reset().cuda(device_id)
         state = torch.stack([obs] * 4, dim=2)
         new_life = True
         prev_life = 5
@@ -121,7 +121,7 @@ def main(dt=1.0, runtime=500, scale1=6.452, scale2=71.155, probabilistic=False, 
                 action = 1
             
             next_obs, reward, done, info = ENV.step(action)
-            next_obs = next_obs.cuda()
+            next_obs = next_obs.cuda(device_id)
             steps += 1
             if prev_life - info["ale.lives"] != 0:
                 new_life = True
@@ -167,8 +167,8 @@ if __name__ == '__main__':
     parser.add_argument('--runtime', type=int, default=250)
     parser.add_argument('--scale1', type=float, default=6.452)
     parser.add_argument('--scale2', type=float, default=71.155)
-    parser.add_argument('--probabilistic', type=bool, default=False)
-    parser.add_argument('--stdp', type=bool, default=True)
+    parser.add_argument('--probabilistic', type=int, default=0)
+    parser.add_argument('--stdp', type=int, default=0)
     parser.add_argument('--nu_pre', type=float, default=1e-8)
     parser.add_argument('--nu_post', type=float, default=1e-6)
     parser.add_argument('--episodes', type=int, default=200)
