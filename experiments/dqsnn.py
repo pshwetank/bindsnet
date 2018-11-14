@@ -60,8 +60,7 @@ def transfer(ann_path, dt=1.0, runtime=500, scale1=6.452, scale2=71.155, probabi
     exc_readout_conn = Connection(source=layers['E'], target=layers['R'], w=torch.transpose(DQANN.fc2.weight, 0, 1) * scale2)
     DQSNN.add_connection(input_exc_conn, source='X', target='E')
     if stdp:
-        w=torch.rand((1000, 1000))
-        _ = w.as_strided([1000], [1001]).copy_(torch.zeros(1000))
+        w=torch.zeros((1000, 1000))
         exc_exc_conn = Connection(source=layers['E'], target=layers['E'], w=w, 
                                   update_rule=post_pre, nu_pre=nu_pre, nu_post=nu_post, norm=(2035))
         DQSNN.add_connection(exc_exc_conn, source='E', target='E')
@@ -122,7 +121,7 @@ def main(dt=1.0, runtime=500, episodes=100, epsilon=0, device_id=0, **args):
             DQSNN.run(inpts, time=runtime)
             readout_spikes = DQSNN.monitors['R_spikes'].get('s')
             
-            action_probs = policy(torch.sum(readout_spikes, dim=0))
+            action_probs = policy(torch.sum(readout_spikes, dim=1))
             action = np.random.choice(ACTIONS, p=action_probs)
             
             if new_life:
