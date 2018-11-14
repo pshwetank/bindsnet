@@ -14,6 +14,7 @@ from bindsnet.network.nodes import RealInput, LIFNodes
 from bindsnet.network.topology import Connection
 from bindsnet.network.monitors import Monitor
 from bindsnet.environment import GymEnvironment 
+from bindsnet.learning import WeightDependentPostPre as wd_post_pre
 from gym import wrappers
 from time import time as T
 from argparse import ArgumentParser
@@ -62,7 +63,7 @@ def transfer(ann_path, dt=1.0, runtime=500, scale1=6.452, scale2=71.155, probabi
     if stdp:
         w=torch.zeros((1000, 1000))
         exc_exc_conn = Connection(source=layers['E'], target=layers['E'], w=w, 
-                                  update_rule=post_pre, nu_pre=nu_pre, nu_post=nu_post, norm=(2035))
+                                  update_rule=wd_post_pre, nu_pre=nu_pre, nu_post=nu_post, wmin=0, wmax=1)
         DQSNN.add_connection(exc_exc_conn, source='E', target='E')
     DQSNN.add_connection(exc_readout_conn, source='E', target='R')
     
@@ -100,6 +101,11 @@ def main(dt=1.0, runtime=500, episodes=100, epsilon=0, device_id=0, **args):
     start_time = T()
     total_steps = 0
     
+    if args['stdp']:
+        masks = {('X','X'): torch.diag(torch.ones(1000))}
+    else:
+        masks = None
+    
     curr_network_file = os.path.join(experiment_dir, f'{0:03d}_dqsnn.net')
     DQSNN.save(curr_network_file)
     print(f'Saved Start Network to {curr_network_file}.')
@@ -118,7 +124,12 @@ def main(dt=1.0, runtime=500, episodes=100, epsilon=0, device_id=0, **args):
             
             inpts = {'X': encoded_state}
             DQSNN.reset_()
-            DQSNN.run(inpts, time=runtime)
+            
+            if masks:
+                DQSNN.run(inpts, time=runtime, masks=masks)
+            else:
+                DQSNN.run(inpts, time=runtime)
+            
             readout_spikes = DQSNN.monitors['R_spikes'].get('s')
             
             action_probs = policy(torch.sum(readout_spikes, dim=1))
@@ -171,7 +182,7 @@ if __name__ == '__main__':
     parser = ArgumentParser()
     parser.add_argument('--seed', type=int, default=0)
     parser.add_argument('--dt', type=int, default=1.0)
-    parser.add_argument('--runtime', type=int, default=250)
+    parser.add_argument('--runtime', type=int, default=500)
     parser.add_argument('--scale1', type=float, default=6.452)
     parser.add_argument('--scale2', type=float, default=71.155)
     parser.add_argument('--probabilistic', type=int, default=0)
